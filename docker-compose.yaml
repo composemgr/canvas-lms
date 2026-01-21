@@ -1,0 +1,54 @@
+# nginx proxy address - http://172.17.0.1:8092
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
+services:
+  canvas-lms:
+    image: instructure/canvas-lms:latest
+    container_name: canvas-lms-app
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - canvas-lms
+    ports:
+      - "8092:3000"
+    environment:
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ./rootfs/data/canvas-lms:/data
+      - ./rootfs/config/canvas-lms:/config
+    depends_on:
+      - canvas-lms-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  canvas-lms-db:
+    image: postgres:16-alpine
+    container_name: canvas-lms-db
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - canvas-lms
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-canvas-lms}
+      POSTGRES_USER: ${DB_USER_NAME:-canvas-lms}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+    volumes:
+      - ./rootfs/db/postgres/canvas-lms:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  canvas-lms:
+    external: false
