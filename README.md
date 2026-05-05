@@ -50,9 +50,9 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/data/canvas-lms` - Data storage
-- `./rootfs/config/canvas-lms` - Data storage
-- `./rootfs/data/db/postgres/canvas-lms` - Data storage
+- `./volumes/data/canvas-lms` - Data storage
+- `./volumes/config/canvas-lms` - Data storage
+- `./volumes/data/db/postgres/canvas-lms` - Data storage
 
 ## 🔐 Security
 
