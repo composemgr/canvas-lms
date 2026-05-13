@@ -17,6 +17,8 @@ services:
     logging: *default-logging
     networks:
       - canvas-lms
+      - proxy
+      - cloudflare
     ports:
       - "172.17.0.1:8092:3000"
     environment:
@@ -31,8 +33,10 @@ services:
       CANVAS_ADMIN_PASSWORD: ${APP_ADMIN_PASS:-changeme_admin_password}
       CANVAS_SMTP_ADDRESS: ${EMAIL_SERVER_HOST:-172.17.0.1}
       CANVAS_SMTP_PORT: ${EMAIL_SERVER_PORT:-587}
-      CANVAS_SMTP_USERNAME: ${EMAIL_SERVER_USER:-}
-      CANVAS_SMTP_PASSWORD: ${EMAIL_SERVER_PASS:-}
+      CANVAS_SMTP_USERNAME: ${EMAIL_SERVER_LOGIN_NAME:-}
+      CANVAS_SMTP_PASSWORD: ${EMAIL_SERVER_LOGIN_PASS:-}
+      CONTAINER_NAME: canvas-lms-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
       - ./volumes/data/canvas-lms:/data
       - ./volumes/config/canvas-lms:/config
@@ -44,6 +48,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://canvas-lms-app:3000'
+      - 'cloudflare.hostname=canvas-lms.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.canvas-lms-app.entrypoints=http'
+      - 'traefik.http.routers.canvas-lms-app-secure.tls=true'
+      - 'traefik.http.routers.canvas-lms-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.canvas-lms-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.canvas-lms-app.middlewares=canvas-lms-app-https-redirect'
+      - 'traefik.http.routers.canvas-lms-app-secure.entrypoints=https'
+      - 'traefik.http.routers.canvas-lms-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.canvas-lms-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.canvas-lms-app-secure.service=canvas-lms-app'
+      - 'traefik.http.services.canvas-lms-app.loadbalancer.server.port=3000'
 
   canvas-lms-db:
     image: postgres:latest
@@ -59,6 +79,7 @@ services:
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-canvas}
       POSTGRES_USER: ${DB_USER_NAME:-canvas}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      CONTAINER_NAME: canvas-lms-db
     volumes:
       - ./volumes/data/db/postgres/canvas-lms:/var/lib/postgresql/data
     healthcheck:
@@ -71,3 +92,7 @@ networks:
   canvas-lms:
     name: canvas-lms
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
