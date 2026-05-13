@@ -1,5 +1,6 @@
 # nginx proxy address - http://172.17.0.1:8092
 
+name: canvas-lms
 x-logging: &default-logging
   driver: json-file
   options:
@@ -7,22 +8,37 @@ x-logging: &default-logging
     max-file: "1"
 
 services:
-  canvas-lms:
+  app:
     image: instructure/canvas-lms:latest
+    pull_policy: always
     container_name: canvas-lms-app
-    restart: unless-stopped
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
     logging: *default-logging
     networks:
       - canvas-lms
     ports:
-      - "8092:3000"
+      - "172.17.0.1:8092:3000"
     environment:
       TZ: ${TZ:-America/New_York}
+      CANVAS_DATABASE_HOST: canvas-lms-db
+      CANVAS_DATABASE_PORT: 5432
+      CANVAS_DATABASE_NAME: ${DB_CREATE_DATABASE_NAME:-canvas}
+      CANVAS_DATABASE_USER: ${DB_USER_NAME:-canvas}
+      CANVAS_DATABASE_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      CANVAS_SECRET_KEY_BASE: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
+      CANVAS_ADMIN_EMAIL: ${APP_ADMIN_USER:-admin}@${BASE_DOMAIN_NAME:-example.com}
+      CANVAS_ADMIN_PASSWORD: ${APP_ADMIN_PASS:-changeme_admin_password}
+      CANVAS_SMTP_ADDRESS: ${EMAIL_SERVER_HOST:-172.17.0.1}
+      CANVAS_SMTP_PORT: ${EMAIL_SERVER_PORT:-587}
+      CANVAS_SMTP_USERNAME: ${EMAIL_SERVER_USER:-}
+      CANVAS_SMTP_PASSWORD: ${EMAIL_SERVER_PASS:-}
     volumes:
       - ./volumes/data/canvas-lms:/data
       - ./volumes/config/canvas-lms:/config
     depends_on:
-      - canvas-lms-db
+      canvas-lms-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
@@ -30,16 +46,18 @@ services:
       retries: 3
 
   canvas-lms-db:
-    image: postgres:16-alpine
+    image: postgres:latest
+    pull_policy: always
     container_name: canvas-lms-db
-    restart: unless-stopped
+    hostname: canvas-lms-db
+    restart: always
     logging: *default-logging
     networks:
       - canvas-lms
     environment:
       TZ: ${TZ:-America/New_York}
-      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-canvas-lms}
-      POSTGRES_USER: ${DB_USER_NAME:-canvas-lms}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-canvas}
+      POSTGRES_USER: ${DB_USER_NAME:-canvas}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
     volumes:
       - ./volumes/data/db/postgres/canvas-lms:/var/lib/postgresql/data
@@ -51,4 +69,5 @@ services:
 
 networks:
   canvas-lms:
+    name: canvas-lms
     external: false
