@@ -1,98 +1,78 @@
-# nginx proxy address - http://172.17.0.1:8092
+# nginx proxy address - http://172.17.0.1:64132
 
 name: canvas-lms
 x-logging: &default-logging
-  driver: json-file
   options:
-    max-size: "5m"
-    max-file: "1"
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
 
 services:
   app:
-    image: instructure/canvas-lms:latest
-    pull_policy: always
+    image: instructure/canvas-lms:stable
     container_name: canvas-lms-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
+    pull_policy: always
     logging: *default-logging
-    networks:
-      - canvas-lms
-      - proxy
-      - cloudflare
-    ports:
-      - "172.17.0.1:8092:3000"
     environment:
       TZ: ${TZ:-America/New_York}
       CANVAS_DATABASE_HOST: canvas-lms-db
       CANVAS_DATABASE_PORT: 5432
       CANVAS_DATABASE_NAME: ${DB_CREATE_DATABASE_NAME:-canvas}
       CANVAS_DATABASE_USER: ${DB_USER_NAME:-canvas}
-      CANVAS_DATABASE_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      CANVAS_SECRET_KEY_BASE: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
+      CANVAS_DATABASE_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+      CANVAS_SECRET_KEY_BASE: ${APP_SECRET_KEY:-replace-with-a-random-32-byte-hex-string}
       CANVAS_ADMIN_EMAIL: ${APP_ADMIN_USER:-admin}@${BASE_DOMAIN_NAME:-example.com}
-      CANVAS_ADMIN_PASSWORD: ${APP_ADMIN_PASS:-changeme_admin_password}
+      CANVAS_ADMIN_PASSWORD: ${APP_ADMIN_PASS:-replace-with-a-random-password}
       CANVAS_SMTP_ADDRESS: ${EMAIL_SERVER_HOST:-172.17.0.1}
       CANVAS_SMTP_PORT: ${EMAIL_SERVER_PORT:-587}
       CANVAS_SMTP_USERNAME: ${EMAIL_SERVER_LOGIN_NAME:-}
       CANVAS_SMTP_PASSWORD: ${EMAIL_SERVER_LOGIN_PASS:-}
       CONTAINER_NAME: canvas-lms-app
       HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+    ports:
+      - '172.17.0.1:64132:80'
     volumes:
-      - ./volumes/data/canvas-lms:/data
-      - ./volumes/config/canvas-lms:/config
-    depends_on:
-      canvas-lms-db:
-        condition: service_healthy
+      - './volumes/data/canvas-lms:/data'
+      - './volumes/config/canvas-lms:/config'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - 'traefik.enable=true'
-      - 'cloudflare.enable=true'
-      - 'traefik.docker.network=proxy'
-      - 'cloudflare.service=http://canvas-lms-app:3000'
-      - 'cloudflare.hostname=canvas-lms.${CLOUDFLARE_ZONE_NAME:-}'
-      - 'traefik.http.routers.canvas-lms-app.entrypoints=http'
-      - 'traefik.http.routers.canvas-lms-app-secure.tls=true'
-      - 'traefik.http.routers.canvas-lms-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.middlewares.canvas-lms-app-https-redirect.redirectscheme.scheme=https'
-      - 'traefik.http.routers.canvas-lms-app.middlewares=canvas-lms-app-https-redirect'
-      - 'traefik.http.routers.canvas-lms-app-secure.entrypoints=https'
-      - 'traefik.http.routers.canvas-lms-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
-      - 'traefik.http.routers.canvas-lms-app-secure.tls.certresolver=cloudflare'
-      - 'traefik.http.routers.canvas-lms-app-secure.service=canvas-lms-app'
-      - 'traefik.http.services.canvas-lms-app.loadbalancer.server.port=3000'
+    depends_on:
+      canvas-lms-db:
+        condition: service_healthy
+    networks:
+      - canvas-lms
 
   canvas-lms-db:
     image: postgres:latest
-    pull_policy: always
     container_name: canvas-lms-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
     hostname: canvas-lms-db
     restart: always
+    pull_policy: always
     logging: *default-logging
-    networks:
-      - canvas-lms
     environment:
       TZ: ${TZ:-America/New_York}
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-canvas}
       POSTGRES_USER: ${DB_USER_NAME:-canvas}
-      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
       CONTAINER_NAME: canvas-lms-db
     volumes:
-      - ./volumes/data/db/postgres/canvas-lms:/var/lib/postgresql/data
+      - './volumes/data/db/postgres/canvas-lms:/var/lib/postgresql/data:z'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - canvas-lms
 
 networks:
   canvas-lms:
     name: canvas-lms
     external: false
-  proxy:
-    external: true
-  cloudflare:
-    external: true
